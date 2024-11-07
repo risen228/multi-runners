@@ -9,7 +9,8 @@ set -o pipefail
 # directory and filename of this script
 DIR_THIS="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 FILE_THIS="$(basename "${BASH_SOURCE[0]}")"
-declare -rg DIR_THIS FILE_THIS
+RUNNER_ALLOW_RUNASROOT=1
+declare -rg DIR_THIS FILE_THIS RUNNER_ALLOW_RUNASROOT
 
 # only for local debug if .env file exists
 # shellcheck disable=SC1091
@@ -301,12 +302,12 @@ function mr::addRunner {
         cd .. && tar -xzf "$tarpath"
         echo "$dotenv" >> .env
 
-        RUNNER_ALLOW_RUNASROOT=1 ./config.sh --unattended --replace --url '$url' --token '$token' --name '$name' --labels '$labels' --runnergroup '$group'
-        sudo ./svc.sh install root
+        ./config.sh --unattended --replace --url '$url' --token '$token' --name '$name' --labels '$labels' --runnergroup '$group'
+        ./svc.sh install root
         if [[ "$(getenforce 2>/dev/null)" == "Enforcing" ]]; then
             chcon -t bin_t ./runsvc.sh # https://github.com/vbem/multi-runners/issues/9
         fi
-        sudo ./svc.sh start
+        ./svc.sh start
 
         log::failed $? "Failed installing runner $i (user '$user') for $url!" || return $?
     done
@@ -356,7 +357,7 @@ function mr::delRunner {
 
         cd "$home"
         sudo ./svc.sh stop && sudo ./svc.sh uninstall
-        RUNNER_ALLOW_RUNASROOT=1 ./config.sh remove --token '$token'
+        ./config.sh remove --token '$token'
 
         run::log sudo userdel -rf "$user"
     done
