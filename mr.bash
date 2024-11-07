@@ -9,8 +9,8 @@ set -o pipefail
 # directory and filename of this script
 DIR_THIS="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 FILE_THIS="$(basename "${BASH_SOURCE[0]}")"
-RUNNER_ALLOW_RUNASROOT=1
-declare -rg DIR_THIS FILE_THIS RUNNER_ALLOW_RUNASROOT
+export RUNNER_ALLOW_RUNASROOT=1
+declare -rg DIR_THIS FILE_THIS
 
 # only for local debug if .env file exists
 # shellcheck disable=SC1091
