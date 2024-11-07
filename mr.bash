@@ -302,6 +302,7 @@ function mr::addRunner {
         cd .. && tar -xzf "$tarpath"
         echo "$dotenv" >> .env
 
+        ls -la
         echo "--unattended --replace --url '$url' --token '$token' --name '$name' --labels '$labels' --runnergroup '$group'"
         ./config.sh --unattended --replace --url '$url' --token '$token' --name '$name' --labels '$labels' --runnergroup '$group'
         ./svc.sh install root
