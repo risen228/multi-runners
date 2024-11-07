@@ -278,6 +278,7 @@ function mr::addRunner {
 
     for i in $(seq 1 "$count"); do
         user="$(mr::addUser "$username")" || return $?
+        local home="/runners/$user"
         local name="$user@$HOSTNAME"
         local labels="$commonLabels,username:$user"
         local url=''
@@ -292,21 +293,22 @@ function mr::addRunner {
             labels+=",$org/$repo"
         fi
 
-        log::_ INFO "Installing runner $i in local user '$user' for $url"
-        run::logFailed sudo su --login "$user" -- -eo pipefail <<-__
-            mkdir -p runner/mr.d && cd runner/mr.d
-            echo -n '$enterprise' > enterprise && echo -n '$org' > org && echo -n '$repo' > repo && echo -n '$url' > url
-            echo -n '$name' > name && echo -n '$labels' > labels && echo -n '$tarpath' > tarpath
-            cd .. && tar -xzf "$tarpath"
-            echo "$dotenv" >> .env
-            ./config.sh --unattended --replace --url '$url' --token '$token' --name '$name' --labels '$labels' --runnergroup '$group'
-            sudo ./svc.sh install '$user'
-            if [[ "$(getenforce 2>/dev/null)" == "Enforcing" ]]; then
-                chcon -t bin_t ./runsvc.sh # https://github.com/vbem/multi-runners/issues/9
-            fi
-            sudo ./svc.sh start
-__
-        log::failed $? "Failed installing runner $i in local user '$user' for $url!" || return $?
+        log::_ INFO "Installing runner $i (user '$user') for $url"
+
+        mkdir -p $home/mr.d && cd $home/mr.d
+        echo -n '$enterprise' > enterprise && echo -n '$org' > org && echo -n '$repo' > repo && echo -n '$url' > url
+        echo -n '$name' > name && echo -n '$labels' > labels && echo -n '$tarpath' > tarpath
+        cd .. && tar -xzf "$tarpath"
+        echo "$dotenv" >> .env
+
+        RUNNER_ALLOW_RUNASROOT=1 ./config.sh --unattended --replace --url '$url' --token '$token' --name '$name' --labels '$labels' --runnergroup '$group'
+        sudo ./svc.sh install root
+        if [[ "$(getenforce 2>/dev/null)" == "Enforcing" ]]; then
+            chcon -t bin_t ./runsvc.sh # https://github.com/vbem/multi-runners/issues/9
+        fi
+        sudo ./svc.sh start
+
+        log::failed $? "Failed installing runner $i (user '$user') for $url!" || return $?
     done
 }
 
@@ -343,17 +345,19 @@ function mr::delRunner {
 
     for user in "${removals[@]}"; do
         log::_ INFO "Deleting runner in local user '$user'"
+        local home="/runners/$user"
+
         if [[ -z "$token" ]]; then
             enterprise="$(run::logFailed sudo -Hiu "$user" -- cat runner/mr.d/enterprise)"
             org="$(run::logFailed sudo -Hiu "$user" -- cat runner/mr.d/org)"
             repo="$(run::logFailed sudo -Hiu "$user" -- cat runner/mr.d/repo)"
             token="$(mr::pat2token "$enterprise" "$org" "$repo")"
         fi
-        run::logFailed sudo su --login "$user" -- <<-__
-            cd runner
-            sudo ./svc.sh stop && sudo ./svc.sh uninstall
-            ./config.sh remove --token '$token'
-__
+
+        cd "$home"
+        sudo ./svc.sh stop && sudo ./svc.sh uninstall
+        RUNNER_ALLOW_RUNASROOT=1 ./config.sh remove --token '$token'
+
         run::log sudo userdel -rf "$user"
     done
 }
